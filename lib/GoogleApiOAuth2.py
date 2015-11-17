@@ -66,7 +66,7 @@ class googleOAuth:
 			keyData['expires_in'] = expDate.isoformat()
 		
 		
-			if not hasattr(keyData,'refresh_token'):
+			if not hasattr(keyData,'refresh_token') and refreshToken <> '':
 				keyData['refresh_token'] = refreshToken
 				
 			if not os.path.exists(keyDir):

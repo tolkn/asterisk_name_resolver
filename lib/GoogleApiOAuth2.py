@@ -43,6 +43,9 @@ class googleOAuth:
 			
 			
 		postData = "client_id={0}&client_secret={1}&".format(clientId, clientSecret) 
+		
+		print "post", postData, refreshToken
+		
 		if refreshToken == "":
 			logging.debug("get new refreshToken by accessCode")
 			postData += "code={0}&redirect_uri=urn:ietf:wg:oauth:2.0:oob&grant_type=authorization_code".format(accessCode)  
@@ -57,10 +60,13 @@ class googleOAuth:
 			req = urllib2.Request("https://www.googleapis.com/oauth2/v3/token", postData, headers)
 			response = urllib2.urlopen(req)
 			keyData = json.loads(response.read())
-				
+			
+			
 			expDate = datetime.datetime.now() + datetime.timedelta(seconds=keyData['expires_in'])
 			keyData['expires_in'] = expDate.isoformat()
-			if keyData['refresh_token'] == '':
+		
+		
+			if not hasattr(keyData,'refresh_token'):
 				keyData['refresh_token'] = refreshToken
 				
 			if not os.path.exists(keyDir):

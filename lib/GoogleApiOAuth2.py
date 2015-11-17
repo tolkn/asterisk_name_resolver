@@ -44,8 +44,6 @@ class googleOAuth:
 			
 		postData = "client_id={0}&client_secret={1}&".format(clientId, clientSecret) 
 		
-		print "post", postData, refreshToken
-		
 		if refreshToken == "":
 			logging.debug("get new refreshToken by accessCode")
 			postData += "code={0}&redirect_uri=urn:ietf:wg:oauth:2.0:oob&grant_type=authorization_code".format(accessCode)  

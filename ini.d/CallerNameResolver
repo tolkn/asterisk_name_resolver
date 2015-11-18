@@ -36,9 +36,8 @@ do_start () {
 		return 0
 	fi
 	
-	echo "Starting $DAEMON_NAME: " ''
-#    $DAEMON --start --pidfile $PIDFILE --make-pidfile --user $DAEMON_USER --chuid $DAEMON_USER --startas $DAEMON -- $DAEMON_OPTS
-	$DAEMON DAEMON
+	echo "Starting $DAEMON_NAME"
+	python $DAEMON start
 	RETVAL=$?
 	echo
 	return $RETVAL
@@ -48,12 +47,8 @@ do_stop () {
 
 	if [ -f $PIDFILE ]; then
 		echo $"Shutting down $DAEMON_NAME: "
-		local pids=$(<$PIDFILE)
-
-		rm -f $PIDFILE
-		kill -9 $pids
+		python $DAEMON stop
 		RETVAL=$?
-		[ $RETVAL -eq 0 ] && rm -f $PIDFILE
 		echo "$DAEMON_NAME (pid $pids) is stoped"
 	else
 		echo "$DAEMON_NAME not running."

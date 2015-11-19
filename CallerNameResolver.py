@@ -16,6 +16,7 @@ from GoogleContactName import googleAPI
 from AsteriskRESTActions import asteriskRESTActions
 from GoogleApiOAuth2 import googleOAuth
 from daemon import runner
+from translit import transliterate
 
 logDir = "/var/log/asterisk_name_resolver"
 logFormat = "[%(asctime)s] %(levelname)s {%(filename)s:%(lineno)d} - %(message)s"
@@ -31,6 +32,7 @@ class caller_name_resolver:
 	def on_message(self, ws, message):
 		msg = json.loads(message)
 		if msg['type'] == 'StasisStart':
+						
 			logging.debug( u"type={0}:channel_id={1}:caller_id={2}:caller_name={3}".format(msg['type'], msg['channel']['id'], msg['channel']['caller']['number'], msg['channel']['caller']['name']))
 			
 			if self.googleOAuth is not None:
@@ -44,10 +46,15 @@ class caller_name_resolver:
 				if name <> '':
 					logging.info( u'Found GoogleContact: {0} by caller number: {1}'.format(name.decode('utf8'), msg['channel']['caller']['number'])  )
 					logging.debug( "Set contact name to channel " )
-					asteriskRESTActions.set_channel_caller_name(msg['channel']['id'], name)
+					if msg['args'] <> []:
+						if msg['args'][0].strip() == 'useTranslit':
+							name = u"%s" % transliterate(name.decode('utf8'))
+							logging.debug( u"Transliterate name: %s" % name)
+					
+					self.asteriskAction.set_channel_caller_name(msg['channel']['id'], name)
 				
 				logging.debug( "Set dialplan continue " )	
-				asteriskRESTActions.set_continue(msg['channel']['id'])
+				self.asteriskAction.set_continue(msg['channel']['id'])
 			else:
 				logging.error( "Can't resolve name. OAuth object is null" )
 			
@@ -103,12 +110,12 @@ class caller_name_resolver:
 
 	
 	
-	def __init__(self, config, oauth=None):
+	def __init__(self, config, oauth=None, action=None):
 	
 		self.googleOAuth = oauth
+		self.asteriskAction = action
 		
 		self.config = config
-		asteriskRESTActions.config = config
 		
 		self.stdin_path = '/dev/null'
 		self.stdout_path = '/dev/tty'
@@ -132,46 +139,48 @@ class caller_name_resolver:
 
 if __name__ == "__main__":
 	
-		config = ConfigParser.RawConfigParser()
-		config.read(os.path.dirname(__file__)+'/CallerNameResolver.config')
+	config = ConfigParser.RawConfigParser()
+	config.read(os.path.dirname(__file__)+'/CallerNameResolver.config')
+	
+	if	config.get('default', 'log_level') == 'INFO':
+		logLevel = logging.INFO
 		
-		if	config.get('default', 'log_level') == 'INFO':
-			logLevel = logging.INFO
-			
-		
-		if len(sys.argv) > 1:
-		
-			if not os.path.exists(logDir):
-				os.makedirs(logDir)
+	
+	if len(sys.argv) > 1:
+	
+		if not os.path.exists(logDir):
+			os.makedirs(logDir)
 
-			handler = logging.FileHandler(logDir+'/message.log', "a", encoding = "UTF-8")
-			formatter = logging.Formatter(logFormat)
-			handler.setFormatter(formatter)
-			root_logger = logging.getLogger()
-			root_logger.addHandler(handler)
-			root_logger.setLevel(logLevel)
-		
-			if sys.argv[1] == 'start':
-						
-				with googleOAuth(config) as oauth:
-					with caller_name_resolver(config, oauth) as instance:
-						daemon_runner = runner.DaemonRunner(instance)
-						daemon_runner.daemon_context.files_preserve=[handler.stream]
-						daemon_runner.do_action()
+		handler = logging.FileHandler(logDir+'/message.log', "a", encoding = "UTF-8")
+		formatter = logging.Formatter(logFormat)
+		handler.setFormatter(formatter)
+		root_logger = logging.getLogger()
+		root_logger.addHandler(handler)
+		root_logger.setLevel(logLevel)
+	
+		if sys.argv[1] == 'start':
 					
-			elif sys.argv[1] == 'stop':
-		
-				instance =  caller_name_resolver(config)
-				daemon_runner = runner.DaemonRunner(instance)
-				daemon_runner.daemon_context.files_preserve=[handler.stream]
-				daemon_runner.do_action()
-
-
-		else:
-			logging.basicConfig(format = logFormat, level = logLevel)
 			with googleOAuth(config) as oauth:
-					with caller_name_resolver(config, oauth) as instance:
-						instance.mode = 1
-						instance.run()
+				action = asteriskRESTActions(config)
+				with caller_name_resolver(config, oauth, action) as instance:
+					daemon_runner = runner.DaemonRunner(instance)
+					daemon_runner.daemon_context.files_preserve=[handler.stream]
+					daemon_runner.do_action()
+				
+		elif sys.argv[1] == 'stop':
+	
+			instance =  caller_name_resolver(config)
+			daemon_runner = runner.DaemonRunner(instance)
+			daemon_runner.daemon_context.files_preserve=[handler.stream]
+			daemon_runner.do_action()
+
+
+	else:
+		logging.basicConfig(format = logFormat, level = logLevel)
+		with googleOAuth(config) as oauth:
+			action = asteriskRESTActions(config)
+			with caller_name_resolver(config, oauth, action) as instance:
+				instance.mode = 1
+				instance.run()
 
 

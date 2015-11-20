@@ -56,9 +56,11 @@ class caller_name_resolver:
 							logging.debug( u"Transliterate name: %s" % name)
 					
 					self.asteriskAction.set_channel_caller_name(msg['channel']['id'], name)
+			else:
+				logging.debug( "Not found contact context" )
 				
-				logging.debug( "Set dialplan continue " )	
-				self.asteriskAction.set_continue(msg['channel']['id'])
+			logging.debug( "Set dialplan continue " )	
+			self.asteriskAction.set_continue(msg['channel']['id'])
 		
 		elif msg['type'] == 'ChannelCallerId':
 			logging.debug( u"type={0}:channel_id={1}:caller_id={2}:caller_name={3}:target_number={4}".format(msg['type'], msg['channel']['id'], msg['channel']['caller']['number'], msg['channel']['caller']['name'], msg['channel']['dialplan']['exten']))
@@ -112,15 +114,17 @@ class caller_name_resolver:
 
 	
 	
-	def __init__(self, config, action=None):
+	def __init__(self, config=None, action=None):
 	
 		self.asteriskAction = action
-		self.config = config
-		
-		for sec in config.sections():
-			names = sec.rsplit('contact_')
-			if (len(names) == 2 and (dict(config.items(sec))).get('accesscode') <> None):
-				self.contactDic[names[1]] = googleAPI(config, names[1])
+				
+		if config is not None:
+			self.config = config
+			
+			for sec in config.sections():
+				names = sec.rsplit('contact_')
+				if (len(names) == 2 and (dict(config.items(sec))).get('accesscode') <> None):
+					self.contactDic[names[1]] = googleAPI(config, names[1])
 	
 		
 		self.stdin_path = '/dev/null'
@@ -134,13 +138,25 @@ class caller_name_resolver:
 	
 
 	def __exit__(self, exc_type, exc_value, traceback):
+		logging.debug( "Service exit " )
 		
-		if self.ws is not None:
-			logging.debug( "Socket close" )
-			self.ws.close()
-			self.ws = None
-		logging.info( "-=============================================================================================-" )
-		logging.debug( "Service stop " )
+	def __del__(self):
+		if self.contactDic <> None:
+			for x in self.contactDic:
+				del x
+			self.contactDic = None
+		
+		if self.asteriskAction <> None:
+			del self.asteriskAction
+			self.asteriskAction = None
+		
+			if self.ws is not None:
+				logging.debug( "Socket close" )
+				self.ws.close()
+				del self.ws
+				self.ws = None
+			logging.info( "-=============================================================================================-" )
+			logging.info( "Service destruct" )
 
 
 if __name__ == "__main__":
@@ -174,7 +190,7 @@ if __name__ == "__main__":
 				
 		elif sys.argv[1] == 'stop':
 	
-			instance =  caller_name_resolver(config)
+			instance =  caller_name_resolver()
 			daemon_runner = runner.DaemonRunner(instance)
 			daemon_runner.daemon_context.files_preserve=[handler.stream]
 			daemon_runner.do_action()

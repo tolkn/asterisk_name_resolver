@@ -48,6 +48,10 @@ class googleTokenRequest(googleOAuthCommon):
 		self.postData = self.postData.format(clientId, clientSecret) 
 		self.req = urllib2.Request("https://www.googleapis.com/oauth2/v3/token", self.postData, self.headers)
 	
+	def __del__(self):
+		if self.req is not None:
+			del self.req
+			self.req = None
 	
 class googleRefreshTokenRequest(googleTokenRequest):
 
@@ -126,17 +130,28 @@ class googleOAuth(googleOAuthCommon):
 		self.clientSecret = config.get('googleApp', 'clientSecret')
 		self.accessCode   = config.get('contact_'+contactName, 'accessCode')
 	
-		logging.debug( "OAuth create" )
+		logging.debug( "OAuth create for '{0}' contact context".format(contactName) )
 		self.keyData = self.readKeyData()
 			
 	def __enter__(self):
 		return self
 	
-
 	def __exit__(self, exc_type, exc_value, traceback):
-		self.saveKeyData(self.keyData)
-		logging.debug( "OAuth destruct" )
+		if self.keyData is not None:
+			self.saveKeyData(self.keyData)
+			self.keyData = None
+		logging.debug( 'exit' )
 		
+	def __del__(self):
+		if self.googleRequest is not None:
+			del self.googleRequest
+			
+		if self.keyData is not None:
+			self.saveKeyData(self.keyData)
+			self.keyData = None
+		logging.debug( 'Destruct oauth' )
+		
+
 	
 	
 if __name__ == "__main__":
@@ -151,5 +166,6 @@ if __name__ == "__main__":
 	with googleOAuth(config, '888') as oauth:
 #		oauth.forceNew = 1
 		print oauth.getOAuthKey()
-		
-		
+	
+	oauth = googleOAuth(config, '888')
+	del oauth

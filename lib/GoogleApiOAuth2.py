@@ -5,18 +5,21 @@ import urllib2, logging, ConfigParser, os
 
 class googleOAuthCommon:
 	keyDir = '/usr/share/CallerName'
+	contactName = None
 	
 	def saveKeyData(self, keyData):
-		if keyData <> None:
+		if self.contactName is not None and keyData <> None:
 			if not os.path.exists(self.keyDir):
 				os.makedirs(self.keyDir)
 		
-			with io.open(self.keyDir+'/data.txt', 'w', encoding='utf-8') as f:
+			with io.open('{0}/{1}.txt'.format(self.keyDir, self.contactName), 'w', encoding='utf-8') as f:
 				f.write(unicode(json.dumps(keyData, ensure_ascii=False)))
 				
 	def readKeyData(self):
-		with open(self.keyDir+'/data.txt', 'r') as data_file:
-			keyData = json.loads(data_file.read())
+		keyData = {}
+		if self.contactName is not None and os.path.exists('{0}/{1}.txt'.format(self.keyDir, self.contactName)):
+			with open('{0}/{1}.txt'.format(self.keyDir, self.contactName), 'r') as data_file:
+				keyData = json.loads(data_file.read())
 		return keyData
 
 class googleTokenRequest(googleOAuthCommon):
@@ -28,7 +31,6 @@ class googleTokenRequest(googleOAuthCommon):
 	def getKeyData(self):
 		try:
 			response = urllib2.urlopen(self.req)
-			
 			keyData = json.loads(response.read())
 			expDate = datetime.datetime.now() + datetime.timedelta(seconds=keyData['expires_in'])
 			keyData['expires_in'] = expDate.isoformat()
@@ -53,7 +55,7 @@ class googleRefreshTokenRequest(googleTokenRequest):
 	def getKeyData(self):
 		keyData = googleTokenRequest.getKeyData(self)
 		
-		self.saveKeyData(self, keyData)
+		self.saveKeyData(keyData)
 		
 		return keyData
 
@@ -83,6 +85,7 @@ class googleOAuth(googleOAuthCommon):
 	keyData = None
 	forceNew = 0
 	googleRequest = None
+	
 
 	def getOAuthKey(self):
 	
@@ -103,6 +106,7 @@ class googleOAuth(googleOAuthCommon):
 		elif self.googleRequest is None:
 			self.googleRequest = googleAccessTokenRequest(self.clientId, self.clientSecret, self.keyData['refresh_token'])
 			
+		self.googleRequest.contactName = self.contactName
 
 		kd = self.googleRequest.getKeyData()	
 		if self.forceNew == 2 or self.keyData.get('refresh_token') is None:
@@ -115,11 +119,12 @@ class googleOAuth(googleOAuthCommon):
 		
 	
 
-	def __init__(self, config):
+	def __init__(self, config, contactName):
 	
+		self.contactName = contactName
 		self.clientId     = config.get('googleApp', 'clientId')
 		self.clientSecret = config.get('googleApp', 'clientSecret')
-		self.accessCode   = config.get('googleApp', 'accessCode')
+		self.accessCode   = config.get('contact_'+contactName, 'accessCode')
 	
 		logging.debug( "OAuth create" )
 		self.keyData = self.readKeyData()
@@ -141,9 +146,10 @@ if __name__ == "__main__":
 
 	config = ConfigParser.RawConfigParser()
 	config.read(os.getcwd()+'/CallerNameResolver.config')
+
 	
-	with googleOAuth(config) as oauth:
-		oauth.forceNew = 1
+	with googleOAuth(config, '888') as oauth:
+#		oauth.forceNew = 1
 		print oauth.getOAuthKey()
 		
 		

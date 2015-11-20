@@ -7,16 +7,16 @@ from GoogleApiOAuth2 import googleOAuth
 
 class googleAPI:
 
-	@staticmethod
-	def getContactName(searchString, OAuth):
-
-		url = "https://www.google.com/m8/feeds/contacts/default/full?q={0}&alt=json&max-results=1".format(urllib.quote_plus(searchString))
+	url = "https://www.google.com/m8/feeds/contacts/default/full?q={0}&alt=json&max-results=1"
+	OAuth = None
+	
+	def getContactName(self, searchString):
 
 		try:
 
-			req = urllib2.Request(url)
+			req = urllib2.Request(self.url.format(urllib.quote_plus(searchString)))
 			req.add_header('Gdata-version', "3.0")
-			req.add_header('Authorization', OAuth.getOAuthKey())
+			req.add_header('Authorization', self.OAuth.getOAuthKey())
 
 			response = urllib2.urlopen(req)
 			contactData = json.loads(response.read())
@@ -31,9 +31,9 @@ class googleAPI:
 			logging.error( 'Contact error code:{0}\n'.format(e.code) )
 			
 			if	e.code == 401: #Get new refresh key
-				OAuth.forceNew = 2
-				OAuth.getOAuthKey()
-				OAuth.forceNew = 0
+				self.OAuth.forceNew = 2
+				self.OAuth.getOAuthKey()
+				self.OAuth.forceNew = 0
 			
 		except  urllib2.URLError as e:
 			logging.error( "Error get contact action. With code {0}. \n{1}".format(e.code, e.reason) )
@@ -41,6 +41,17 @@ class googleAPI:
 			logging.error( 'Erorr requesting contact name' )
 		
 		return ''
+		
+	def __enter__(self):
+		return self
+	
+
+	def __exit__(self, exc_type, exc_value, traceback):
+		logging.debug( "googleAPI destruct" )
+	
+	def __init__(self, config, contactName):
+		self.contactName = contactName
+		self.OAuth = googleOAuth(config, contactName)
 
 if __name__ == "__main__":
 
@@ -50,5 +61,5 @@ if __name__ == "__main__":
 	config = ConfigParser.RawConfigParser()
 	config.read(os.getcwd()+'/CallerNameResolver.config')
 	
-	with googleOAuth(config) as oauth:
-		print googleAPI.getContactName('+79261554451', oauth)
+	with googleAPI(config, 'default') as contactApi:
+		print contactApi.getContactName('+79261554451')

@@ -24,25 +24,29 @@ logLevel = logging.DEBUG
 
 class caller_name_resolver:
 
-	googleOAuth = None
 	ws = None
 	mode = 0
 	config = None
+	contactDic = {}
 
 	def on_message(self, ws, message):
 		msg = json.loads(message)
 		if msg['type'] == 'StasisStart':
-						
-			logging.debug( u"type={0}:channel_id={1}:caller_id={2}:caller_name={3}".format(msg['type'], msg['channel']['id'], msg['channel']['caller']['number'], msg['channel']['caller']['name']))
+			logging.debug( u"type={0}:channel_id={1}:caller_id={2}:caller_name={3}:target_number={4}".format(msg['type'], msg['channel']['id'], msg['channel']['caller']['number'], msg['channel']['caller']['name'], msg['channel']['dialplan']['exten']))
+									
+			number = msg['channel']['caller']['number']
+			numberLen = len(number)
+			if numberLen > 10:
+				number = number[numberLen-10:] #Find by last 10 digit
 			
-			if self.googleOAuth is not None:
 			
-				number = msg['channel']['caller']['number']
-				numberLen = len(number)
-				if numberLen > 10:
-					number = number[numberLen-10:] #Find by last 10 digit
-				
-				name = googleAPI.getContactName(number, self.googleOAuth)
+			currentContactContext = self.contactDic.get(msg['channel']['dialplan']['exten'])
+			if	currentContactContext == None:
+				currentContactContext = self.contactDic.get('default')
+
+			if	currentContactContext <> None:
+				logging.debug( "Using contact context:{0}".format(currentContactContext.contactName) )
+				name = currentContactContext.getContactName(number)
 				if name <> '':
 					logging.info( u'Found GoogleContact: {0} by caller number: {1}'.format(name.decode('utf8'), msg['channel']['caller']['number'])  )
 					logging.debug( "Set contact name to channel " )
@@ -55,13 +59,11 @@ class caller_name_resolver:
 				
 				logging.debug( "Set dialplan continue " )	
 				self.asteriskAction.set_continue(msg['channel']['id'])
-			else:
-				logging.error( "Can't resolve name. OAuth object is null" )
-			
+		
 		elif msg['type'] == 'ChannelCallerId':
-			logging.debug( u"type={0}:channel_id={1}:caller_id={2}:caller_name={3}".format(msg['type'], msg['channel']['id'], msg['channel']['caller']['number'], msg['channel']['caller']['name']))
+			logging.debug( u"type={0}:channel_id={1}:caller_id={2}:caller_name={3}:target_number={4}".format(msg['type'], msg['channel']['id'], msg['channel']['caller']['number'], msg['channel']['caller']['name'], msg['channel']['dialplan']['exten']))
 		else:
-			logging.debug( u"type={0}:channel_id={1}:caller_id={2}:caller_name={3}".format(msg['type'], msg['channel']['id'], msg['channel']['caller']['number'], msg['channel']['caller']['name']))
+			logging.debug( u"type={0}:channel_id={1}:caller_id={2}:caller_name={3}:target_number={4}".format(msg['type'], msg['channel']['id'], msg['channel']['caller']['number'], msg['channel']['caller']['name'], msg['channel']['dialplan']['exten']))
 		
 
 	def on_error(self, ws, error):
@@ -110,12 +112,16 @@ class caller_name_resolver:
 
 	
 	
-	def __init__(self, config, oauth=None, action=None):
+	def __init__(self, config, action=None):
 	
-		self.googleOAuth = oauth
 		self.asteriskAction = action
-		
 		self.config = config
+		
+		for sec in config.sections():
+			names = sec.rsplit('contact_')
+			if (len(names) == 2 and (dict(config.items(sec))).get('accesscode') <> None):
+				self.contactDic[names[1]] = googleAPI(config, names[1])
+	
 		
 		self.stdin_path = '/dev/null'
 		self.stdout_path = '/dev/tty'
@@ -160,12 +166,11 @@ if __name__ == "__main__":
 	
 		if sys.argv[1] == 'start':
 					
-			with googleOAuth(config) as oauth:
-				action = asteriskRESTActions(config)
-				with caller_name_resolver(config, oauth, action) as instance:
-					daemon_runner = runner.DaemonRunner(instance)
-					daemon_runner.daemon_context.files_preserve=[handler.stream]
-					daemon_runner.do_action()
+			action = asteriskRESTActions(config)
+			with caller_name_resolver(config, action) as instance:
+				daemon_runner = runner.DaemonRunner(instance)
+				daemon_runner.daemon_context.files_preserve=[handler.stream]
+				daemon_runner.do_action()
 				
 		elif sys.argv[1] == 'stop':
 	
@@ -177,10 +182,9 @@ if __name__ == "__main__":
 
 	else:
 		logging.basicConfig(format = logFormat, level = logLevel)
-		with googleOAuth(config) as oauth:
-			action = asteriskRESTActions(config)
-			with caller_name_resolver(config, oauth, action) as instance:
-				instance.mode = 1
-				instance.run()
+		action = asteriskRESTActions(config)
+		with caller_name_resolver(config, action) as instance:
+			instance.mode = 1
+			instance.run()
 
 

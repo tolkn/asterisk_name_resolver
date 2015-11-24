@@ -1,7 +1,11 @@
 #!/bin/sh
+#
+# chkconfig: 2345 91 50
+# description: CallerNameResolver daemon.
+# processname: CallerNameResolver
 
 ### BEGIN INIT INFO
-# Provides:          myservice
+# Provides:          CallerNameResolver
 # Required-Start:    $remote_fs $syslog
 # Required-Stop:     $remote_fs $syslog
 # Default-Start:     2 3 4 5

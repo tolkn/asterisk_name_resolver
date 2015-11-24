@@ -22,7 +22,15 @@ logDir = "/var/log/asterisk_name_resolver"
 logFormat = "[%(asctime)s] %(levelname)s {%(filename)s:%(lineno)d} - %(message)s"
 logLevel = logging.DEBUG
 
-class caller_name_resolver:
+class daemonApp:
+	stdin_path = '/dev/null'
+	stdout_path = '/dev/tty'
+	stderr_path = '/dev/tty'
+	pidfile_path =  '/var/run/CallerNameResolver.pid'
+	pidfile_timeout = 5	
+	
+
+class caller_name_resolver(daemonApp):
 
 	ws = None
 	mode = 0
@@ -126,12 +134,7 @@ class caller_name_resolver:
 				if (len(names) == 2 and (dict(config.items(sec))).get('accesscode') <> None):
 					self.contactDic[names[1]] = googleAPI(config, names[1])
 	
-		
-		self.stdin_path = '/dev/null'
-		self.stdout_path = '/dev/tty'
-		self.stderr_path = '/dev/tty'
-		self.pidfile_path =  '/var/run/CallerNameResolver.pid'
-		self.pidfile_timeout = 5		
+					
 		
 	def __enter__(self):
 		return self
@@ -190,7 +193,8 @@ if __name__ == "__main__":
 				
 		elif sys.argv[1] == 'stop':
 	
-			instance =  caller_name_resolver()
+#			instance =  caller_name_resolver()
+			instance = daemonApp()
 			daemon_runner = runner.DaemonRunner(instance)
 			daemon_runner.daemon_context.files_preserve=[handler.stream]
 			daemon_runner.do_action()
